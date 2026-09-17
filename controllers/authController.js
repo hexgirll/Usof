@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const db = require('../config/db');
+const jwt = require('jsonwebtoken');
 
 exports.register = async (req, res) => {
     try {
@@ -40,6 +41,57 @@ exports.register = async (req, res) => {
 
     } catch (error) {
         console.error('Registration error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+exports.login = async (req, res) => {
+    try {
+        // The user can log in with either their login or email, 
+        // so we'll accept 'login' in the request body to represent either
+        const { login, password } = req.body;
+
+        // Check if both fields are provided
+        if (!login || !password) {
+            return res.status(400).json({ error: 'Login and password are required' });
+        }
+
+        // Find the user by login or email
+        const [users] = await db.query(
+            'SELECT * FROM Users WHERE login = ? OR email = ?',
+            [login, login]
+        );
+
+        const user = users[0];
+
+        // If user not found, return generic error for security (don't reveal if login exists)
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Compare the provided password with the hashed password in the database
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Generate a JWT token containing the user's ID and role
+        // It will expire in 24 hours
+        const token = jwt.sign(
+            { id: user.id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Send the token back to the client
+        res.status(200).json({ 
+            message: 'Login successful', 
+            token 
+        });
+
+    } catch (error) {
+        console.error('Login error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

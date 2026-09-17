@@ -2,6 +2,9 @@ const express = require('express');
 require('dotenv').config();
 const db = require('./config/db');
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/user');
+const postRoutes = require('./routes/post');
+const commentRoutes = require('./routes/comment');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,6 +14,9 @@ app.use(express.json());
 
 // Connect the authentication routes prefix
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/posts', postRoutes);
+app.use('/api/comments', commentRoutes);
 
 // Basic route to test if the server is alive
 app.get('/', (req, res) => {
