@@ -5,6 +5,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const postRoutes = require('./routes/post');
 const commentRoutes = require('./routes/comment');
+const categoryRoutes = require('./routes/category');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +18,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/comments', commentRoutes);
+app.use('/api/categories', categoryRoutes);
 
 // Basic route to test if the server is alive
 app.get('/', (req, res) => {

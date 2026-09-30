@@ -15,10 +15,12 @@ router.get('/:id', postController.getPostById);
 router.put('/:id', authMiddleware, postController.updatePost);
 // DELETE endpoint to delete a specific post by ID
 router.delete('/:id', authMiddleware, postController.deletePost);
+router.patch('/:id', authMiddleware, postController.updatePost);
 router.post('/:postId/comments', authMiddleware, commentController.createComment);
 router.get('/:postId/comments', commentController.getPostComments);
 router.post('/:postId/like', authMiddleware, likeController.addPostReaction);
 router.get('/:postId/likes', likeController.getPostLikes);
 router.delete('/:postId/like', authMiddleware, likeController.deletePostReaction);
+router.get('/:postId/categories', postController.getPostCategories);
 
 module.exports = router;
