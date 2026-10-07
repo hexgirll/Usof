@@ -45,19 +45,29 @@ exports.getPostComments = async (req, res) => {
 
 exports.updateComment = async (req, res) => {
     try {
-        const { content } = req.body;
+        const { status } = req.body;
 
-        if (!content) {
-            return res.status(400).json({ error: 'Content is required' });
+        if (!status) {
+            return res.status(400).json({ error: 'Status is required' });
         }
 
         const commentId = req.params.id;
-        const authorId = req.user.id; 
 
-        const [result] = await db.query(
-            'UPDATE Comments SET content = ? WHERE id = ? AND author_id = ?',
-            [content, commentId, authorId]
-        );
+        const [comment] = await db.query(`
+            SELECT author_id FROM Comments WHERE id = ?
+        `, [commentId]);
+
+        if (comment.length === 0) {
+            return res.status(404).json({ error: 'Comment not found' });
+        }
+
+        if (req.user.role !== 'admin' && req.user.id !== comment[0].author_id) {
+            return res.status(403).json({ error: 'Unauthorized to update this comment' });
+        }
+
+        const [result] = await db.query(`
+            UPDATE Comments SET status = ? WHERE id = ?
+        `, [status, commentId]);
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Comment not found or unauthorized' });
@@ -74,11 +84,22 @@ exports.updateComment = async (req, res) => {
 exports.deleteComment = async (req, res) => {
     try {
         const commentId = req.params.id;
-        const authorId = req.user.id; 
+
+        const [comment] = await db.query(`
+            SELECT author_id FROM Comments WHERE id = ?
+        `, [commentId]);
+
+        if (comment.length === 0) {
+            return res.status(404).json({ error: 'Comment not found' });
+        }
+
+        if (req.user.role !== 'admin' && req.user.id !== comment[0].author_id) {
+            return res.status(403).json({ error: 'Unauthorized to delete this comment' });
+        }
 
         const [result] = await db.query(
-            'DELETE FROM Comments WHERE id = ? AND author_id = ?',
-            [commentId, authorId]
+            'DELETE FROM Comments WHERE id = ?',
+            [commentId]
         );
 
         if (result.affectedRows === 0) {

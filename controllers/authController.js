@@ -1,6 +1,15 @@
 const bcrypt = require('bcrypt');
 const db = require('../config/db');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
 exports.register = async (req, res) => {
     try {
@@ -66,7 +75,7 @@ exports.login = async (req, res) => {
 
         // If user not found, return generic error for security (don't reveal if login exists)
         if (!user) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.status(401).json({ error: 'User not found' });
         }
 
         // Compare the provided password with the hashed password in the database
@@ -92,6 +101,89 @@ exports.login = async (req, res) => {
 
     } catch (error) {
         console.error('Login error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+exports.passwordResetRequest = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        const [users] = await db.query(
+            'SELECT id, email FROM Users WHERE email = ?',
+            [email]
+        );
+
+        const user = users[0];
+
+        if (!user) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+
+        const resetToken = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '15m' });
+
+        const resetLink = `http://localhost:3000/api/auth/password-reset/${resetToken}`;
+
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'USOF - Password Reset',
+            text: `To reset your password, please click the link below.\n\n${resetLink}\n\nThis link will expire in 15 minutes.`
+        });
+
+        res.status(200).json({ 
+            message: 'Password reset link generated', 
+            resetLink 
+        });
+
+    } catch (error) {
+        console.error('Password reset error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+exports.passwordReset = async (req, res) => {
+    try {
+        const token = req.params.token;
+
+        if (!token) {
+            return res.status(400).json({ error: 'Token is required' });
+        }
+
+        const newPassword = req.body.password;
+
+        if (!newPassword) {
+            return res.status(400).json({ error: 'New password is required' });
+        }
+        
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (error) {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        const [result] = await db.query(
+            'UPDATE Users SET password = ? WHERE id = ?',
+            [hashedPassword, decoded.id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        res.status(200).json({ 
+            message: 'Password updated successfully' 
+        });
+
+    } catch (error) {
+        console.error('Password reset error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

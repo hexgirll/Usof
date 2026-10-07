@@ -5,8 +5,10 @@ const authMiddleware = require('../middleware/auth');
 
 // Define the POST endpoint for registration
 router.post('/register', authController.register);
-
 router.post('/login', authController.login);
+
+router.post('/password-reset', authController.passwordResetRequest);
+router.post('/password-reset/:token', authController.passwordReset);
 
 // A protected test route
 router.get('/me', authMiddleware, (req, res) => {

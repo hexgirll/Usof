@@ -60,3 +60,64 @@ exports.deletePostReaction = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+
+exports.addCommentReaction = async (req, res) => {
+    try {
+        const { type } = req.body;
+        const commentId = req.params.id;
+        const authorId = req.user.id;
+
+        if (!type || (type !== 'like' && type !== 'dislike')) {
+            return res.status(400).json({ error: 'Reaction type is required' });
+        }
+
+        const [result] = await db.query(`
+            INSERT INTO Likes (type, comment_id, author_id)
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE type = VALUES(type)
+        `, [type, commentId, authorId]);
+
+        res.status(201).json({ message: 'Reaction added successfully' });
+
+    } catch (error) {
+        console.error('Create reaction error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+exports.getCommentLikes = async (req, res) => {
+    try {
+        const commentId = req.params.id;
+
+        const [result] = await db.query(`
+            SELECT l.type, u.login AS author
+            FROM Likes l
+            JOIN Users u ON l.author_id = u.id
+            WHERE l.comment_id = ?
+        `, [commentId]);
+
+        res.status(200).json(result);
+
+    } catch (error) {
+        console.error('Get comment likes error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+exports.deleteCommentReaction = async (req, res) => {
+    try {
+        const commentId = req.params.id;
+        const authorId = req.user.id; 
+
+        const [result] = await db.query(
+            'DELETE FROM Likes WHERE comment_id = ? AND author_id = ?',
+            [commentId, authorId]
+        );
+
+        res.status(200).json({ message: 'Reaction deleted successfully' });
+
+    } catch (error) {
+        console.error('Delete comment reaction error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};

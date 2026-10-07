@@ -136,6 +136,10 @@ exports.updatePost = async (req, res) => {
             [title, content, postId, userId]
         );
 
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Post not found or unauthorized' });
+        }
+
         if (categories && Array.isArray(categories)) {
             // First, delete all existing categories for this post
             await db.query('DELETE FROM Post_Category WHERE post_id = ?', [postId]);
