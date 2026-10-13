@@ -23,6 +23,26 @@ exports.createComment = async (req, res) => {
     }
 };
 
+exports.getCommentById = async (req, res) => {
+    try {
+        const commentId = req.params.id;
+        const [comments] = await db.query(`
+            SELECT c.id, c.content, c.publish_date, c.status, u.login AS author
+            FROM Comments c
+            JOIN Users u ON c.author_id = u.id
+            WHERE c.id = ?
+        `, [commentId]);
+
+        if (comments.length === 0) {
+            return res.status(404).json({ error: 'Comment not found' });
+        }
+        res.status(200).json(comments[0]);
+    } catch (error) {
+        console.error('Get comment by ID error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
 exports.getPostComments = async (req, res) => {
     try {
         const postId = req.params.postId;

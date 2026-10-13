@@ -127,24 +127,59 @@ exports.getPostById = async (req, res) => {
 
 exports.updatePost = async (req, res) => {
     try {
-        const { title, content, categories } = req.body;
+        const { title, content, categories, status } = req.body;
         const postId = req.params.id;
-        const userId = req.user.id; 
+        const userId = req.user.id;
+        const userRole = req.user.role;
 
-        const [result] = await db.query(
-            'UPDATE Posts SET title = IFNULL(?, title), content = IFNULL(?, content) WHERE id = ? AND author_id = ?',
-            [title, content, postId, userId]
-        );
+        const [posts] = await db.query('SELECT author_id FROM Posts WHERE id = ?', [postId]);
 
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Post not found or unauthorized' });
+        if (posts.length === 0) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+
+        const isAuthor = posts[0].author_id === userId;
+        const isAdmin = userRole === 'admin';
+
+        if (!isAuthor && !isAdmin) {
+            return res.status(403).json({ error: 'Unauthorized to update this post' });
+        }
+
+        let updateFields = [];
+        let queryParams = [];
+
+        if (isAdmin) {
+            if (status !== undefined) {
+                updateFields.push('status = ?');
+                queryParams.push(status);
+            }
+            
+            if (!isAuthor && (title !== undefined || content !== undefined)) {
+                return res.status(403).json({ error: 'Admins cannot edit content of other users' });
+            }
+            
+            if (isAuthor) {
+                if (title !== undefined) { updateFields.push('title = ?'); queryParams.push(title); }
+                if (content !== undefined) { updateFields.push('content = ?'); queryParams.push(content); }
+            }
+        } 
+        else {
+            if (status !== undefined) {
+                return res.status(403).json({ error: 'Only admins can change post status' });
+            }
+            if (title !== undefined) { updateFields.push('title = ?'); queryParams.push(title); }
+            if (content !== undefined) { updateFields.push('content = ?'); queryParams.push(content); }
+        }
+
+        if (updateFields.length > 0) {
+            queryParams.push(postId);
+            const queryString = `UPDATE Posts SET ${updateFields.join(', ')} WHERE id = ?`;
+            await db.query(queryString, queryParams);
         }
 
         if (categories && Array.isArray(categories)) {
-            // First, delete all existing categories for this post
             await db.query('DELETE FROM Post_Category WHERE post_id = ?', [postId]);
 
-            // Then add new ones (if the array is not empty)
             if (categories.length > 0) {
                 for (let categoryId of categories) {
                     await db.query(

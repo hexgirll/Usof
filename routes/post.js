@@ -19,7 +19,7 @@ router.patch('/:id', authMiddleware, postController.updatePost);
 router.post('/:postId/comments', authMiddleware, commentController.createComment);
 router.get('/:postId/comments', commentController.getPostComments);
 router.post('/:postId/like', authMiddleware, likeController.addPostReaction);
-router.get('/:postId/likes', likeController.getPostLikes);
+router.get('/:postId/like', likeController.getPostLikes);
 router.delete('/:postId/like', authMiddleware, likeController.deletePostReaction);
 router.get('/:postId/categories', postController.getPostCategories);
 
