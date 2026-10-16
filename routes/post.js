@@ -1,19 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const postController = require('../controllers/postController');
-const authMiddleware = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 const commentController = require('../controllers/commentController');
 const likeController = require('../controllers/likeController');
 
-// POST endpoint for creating a new post
 router.post('/', authMiddleware, postController.createPost);
-router.get('/', postController.getAllPosts);
-// GET endpoint to retrieve a specific post by ID
-// The ':id' is a dynamic parameter
-router.get('/:id', postController.getPostById);
-// PUT endpoint to update a specific post by ID
+
+router.get('/', optionalAuth, postController.getAllPosts);
+router.get('/:id', optionalAuth, postController.getPostById);
+
 router.put('/:id', authMiddleware, postController.updatePost);
-// DELETE endpoint to delete a specific post by ID
 router.delete('/:id', authMiddleware, postController.deletePost);
 router.patch('/:id', authMiddleware, postController.updatePost);
 router.post('/:postId/comments', authMiddleware, commentController.createComment);

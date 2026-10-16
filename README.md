@@ -11,8 +11,8 @@ This is the backend RESTful API for a community-driven platform where users shar
 - **Media Uploads:** Avatar uploading using `multer`.
 
 ## Screenshots
-![Database Schema](./screenshots/db_schema.png)
-![Postman Get Posts](./screenshots/postman_get_posts.png)
+![Database Schema](./docs/screenshots/db_schema.png)
+![Postman Get Posts](./docs/screenshots/postman_get_posts.png)
 
 ## Requirements and Dependencies
 To build and run this project, you need the following installed on your machine:

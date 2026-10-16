@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
-const db = require('../config/db');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const User = require('../models/User'); // Import our new OOP Model
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -15,38 +15,48 @@ exports.register = async (req, res) => {
     try {
         const { login, password, password_confirmation, email } = req.body;
 
-        // Validate that all required fields are present
         if (!login || !password || !password_confirmation || !email) {
             return res.status(400).json({ error: 'All fields are required' });
         }
 
-        // Validate password confirmation
         if (password !== password_confirmation) {
             return res.status(400).json({ error: 'Passwords do not match' });
         }
 
-        // Check if a user with this login or email already exists
-        const [existingUsers] = await db.query(
-            'SELECT * FROM Users WHERE login = ? OR email = ?',
-            [login, email]
-        );
-
+        // Use Model instead of raw SQL
+        const existingUsers = await User.findByLoginOrEmail(login, email);
         if (existingUsers.length > 0) {
             return res.status(409).json({ error: 'User with this login or email already exists' });
         }
 
-        // Hash the password 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // We pass the 'login' value as a temporary 'full_name' 
-        // since the database requires this field to not be empty.
-        const [result] = await db.query(
-            'INSERT INTO Users (login, password, email, role, full_name) VALUES (?, ?, ?, ?, ?)',
-            [login, hashedPassword, email, 'user', login]
+        // Use Model to create user
+        const newUserId = await User.create({
+            login,
+            password: hashedPassword,
+            email,
+            role: 'user',
+            full_name: login // Temporary full_name fallback
+        });
+
+        const verificationToken = jwt.sign(
+            { email }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: '24h' }
         );
 
-        // Return a success response with the new user's ID
-        res.status(201).json({ message: 'User registered successfully', userId: result.insertId });
+        // Link should point to Frontend URL, not backend API directly
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const confirmUrl = `${frontendUrl}/confirm-email?token=${verificationToken}`;
+
+        await transporter.sendMail({
+            to: email,
+            subject: "GeoChill - Confirm your email",
+            html: `<p>Click the link to confirm your email: <a href="${confirmUrl}">${confirmUrl}</a></p>`
+        });
+
+        res.status(201).json({ message: 'User registered successfully, confirmation email sent', userId: newUserId });
 
     } catch (error) {
         console.error('Registration error:', error);
@@ -56,52 +66,52 @@ exports.register = async (req, res) => {
 
 exports.login = async (req, res) => {
     try {
-        // The user can log in with either their login or email, 
-        // so we'll accept 'login' in the request body to represent either
-        const { login, password } = req.body;
+        const { login, email, password } = req.body;
 
-        // Check if both fields are provided
-        if (!login || !password) {
-            return res.status(400).json({ error: 'Login and password are required' });
+        if (!login || !email || !password) {
+            return res.status(400).json({ error: 'All fields (login, email, password) are required' });
         }
 
-        // Find the user by login or email
-        const [users] = await db.query(
-            'SELECT * FROM Users WHERE login = ? OR email = ?',
-            [login, login]
-        );
+        const existingUsers = await User.findByLoginOrEmail(login, email);
+        const user = existingUsers[0];
 
-        const user = users[0];
-
-        // If user not found, return generic error for security (don't reveal if login exists)
         if (!user) {
-            return res.status(401).json({ error: 'User not found' });
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // Compare the provided password with the hashed password in the database
-        const isMatch = await bcrypt.compare(password, user.password);
+        if (!user.is_verified) {
+            return res.status(403).json({ error: 'Please confirm your email address' });
+        }
 
+        const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // Generate a JWT token containing the user's ID and role
-        // It will expire in 24 hours
         const token = jwt.sign(
             { id: user.id, role: user.role },
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );
 
-        // Send the token back to the client
-        res.status(200).json({ 
-            message: 'Login successful', 
-            token 
-        });
+        res.status(200).json({ message: 'Login successful', token });
 
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+exports.confirmEmail = async (req, res) => {
+    try {
+        const { token } = req.params;
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        await User.verifyEmail(decoded.email);
+        
+        res.status(200).json({ message: 'Email confirmed successfully' });
+    } catch (error) {
+        res.status(400).json({ error: 'Invalid or expired token' });
     }
 };
 
@@ -113,35 +123,29 @@ exports.passwordResetRequest = async (req, res) => {
             return res.status(400).json({ error: 'Email is required' });
         }
 
-        const [users] = await db.query(
-            'SELECT id, email FROM Users WHERE email = ?',
-            [email]
-        );
-
-        const user = users[0];
-
+        const user = await User.findByEmail(email);
         if (!user) {
-            return res.status(401).json({ error: 'User not found' });
+            // Return 200 even if user not found to prevent email enumeration attacks
+            return res.status(200).json({ message: 'If this email is registered, a reset link has been sent.' });
         }
 
         const resetToken = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
-        const resetLink = `http://localhost:3000/api/auth/password-reset/${resetToken}`;
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const resetLink = `${frontendUrl}/password-reset?token=${resetToken}`;
 
         await transporter.sendMail({
             from: process.env.EMAIL_USER,
             to: email,
-            subject: 'USOF - Password Reset',
+            subject: 'GeoChill - Password Reset',
             text: `To reset your password, please click the link below.\n\n${resetLink}\n\nThis link will expire in 15 minutes.`
         });
 
-        res.status(200).json({ 
-            message: 'Password reset link generated', 
-            resetLink 
-        });
+        // Removed resetLink from JSON response to fix security leak
+        res.status(200).json({ message: 'If this email is registered, a reset link has been sent.' });
 
     } catch (error) {
-        console.error('Password reset error:', error);
+        console.error('Password reset request error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };
@@ -149,15 +153,10 @@ exports.passwordResetRequest = async (req, res) => {
 exports.passwordReset = async (req, res) => {
     try {
         const token = req.params.token;
+        const { password } = req.body;
 
-        if (!token) {
-            return res.status(400).json({ error: 'Token is required' });
-        }
-
-        const newPassword = req.body.password;
-
-        if (!newPassword) {
-            return res.status(400).json({ error: 'New password is required' });
+        if (!token || !password) {
+            return res.status(400).json({ error: 'Token and new password are required' });
         }
         
         let decoded;
@@ -167,20 +166,14 @@ exports.passwordReset = async (req, res) => {
             return res.status(401).json({ error: 'Invalid or expired token' });
         }
 
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const updated = await User.updatePassword(decoded.id, hashedPassword);
 
-        const [result] = await db.query(
-            'UPDATE Users SET password = ? WHERE id = ?',
-            [hashedPassword, decoded.id]
-        );
-
-        if (result.affectedRows === 0) {
+        if (!updated) {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        res.status(200).json({ 
-            message: 'Password updated successfully' 
-        });
+        res.status(200).json({ message: 'Password updated successfully' });
 
     } catch (error) {
         console.error('Password reset error:', error);
@@ -188,6 +181,9 @@ exports.passwordReset = async (req, res) => {
     }
 };
 
+// Logout route is now implemented
 exports.logout = (req, res) => {
+    // In JWT, logout is handled client-side by deleting the token.
+    // We just return a success message here.
     res.status(200).json({ message: 'Logged out successfully' });
 };

@@ -1,37 +1,21 @@
-const db = require('../config/db');
+const Post = require('../models/Post');
 
 exports.createPost = async (req, res) => {
     try {
         const { title, content, categories } = req.body;
-        
-        // Retrieve the user ID securely from the token
         const authorId = req.user.id; 
 
         if (!title || !content) {
             return res.status(400).json({ error: 'Title and content are required' });
         }
 
-        const [result] = await db.query(
-            'INSERT INTO Posts (author_id, title, content) VALUES (?, ?, ?)',
-            [authorId, title, content]
-        );
-
-        const postId = result.insertId;
+        const postId = await Post.create(authorId, title, content);
 
         if (categories && categories.length > 0) {
-            for (let categoryId of categories) {
-                await db.query(
-                    'INSERT INTO Post_Category (post_id, category_id) VALUES (?, ?)',
-                    [postId, categoryId]
-                );
-            }
+            await Post.addCategories(postId, categories);
         }
 
-        res.status(201).json({ 
-            message: 'Post created successfully', 
-            postId
-        });
-
+        res.status(201).json({ message: 'Post created successfully', postId });
     } catch (error) {
         console.error('Create post error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -40,62 +24,8 @@ exports.createPost = async (req, res) => {
 
 exports.getAllPosts = async (req, res) => {
     try {
-        // Extract all possible parameters from the URL
-        const { sort, status, category, date_from, date_to } = req.query;
-
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const offset = (page - 1) * limit;
-
-        // Start building the SQL query
-        let sql = `
-            SELECT p.*, 
-                   IFNULL(SUM(CASE WHEN l.type = 'like' THEN 1 WHEN l.type = 'dislike' THEN -1 ELSE 0 END), 0) AS rating
-            FROM Posts p
-            LEFT JOIN Likes l ON p.id = l.post_id
-        `;
-        
-        let conditions = []; // Array for WHERE conditions
-        let values = [];     // Array for parameterized query values
-
-        // Add conditions based on the provided parameters
-        if (category) {
-            sql += ' JOIN Post_Category pc ON p.id = pc.post_id';
-            conditions.push('pc.category_id = ?');
-            values.push(category);
-        }
-
-        if (status) {
-            conditions.push('p.status = ?');
-            values.push(status);
-        }
-
-        if (date_from && date_to) {
-            conditions.push('p.publish_date BETWEEN ? AND ?');
-            values.push(date_from, date_to);
-        }
-
-        // If there are any conditions, append them to the SQL query
-        if (conditions.length > 0) {
-            sql += ' WHERE ' + conditions.join(' AND ');
-        }
-
-        // Group by post ID to ensure correct aggregation of likes/dislikes
-        sql += ' GROUP BY p.id';
-
-        if (sort === 'date') {
-            sql += ' ORDER BY p.publish_date DESC';
-        } else {
-            sql += ' ORDER BY rating DESC';
-        }
-
-        sql += ' LIMIT ? OFFSET ?';
-        values.push(limit, offset);
-
-        // Execute the query and return the results
-        const [posts] = await db.query(sql, values);
+        const posts = await Post.findAll(req.query, req.user);
         res.status(200).json(posts);
-
     } catch (error) {
         console.error('Get all posts error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -105,20 +35,21 @@ exports.getAllPosts = async (req, res) => {
 exports.getPostById = async (req, res) => {
     try {
         const postId = req.params.id;
-        
-        const [posts] = await db.query(`
-            SELECT p.id, p.title, p.content, p.publish_date, p.status, u.login AS author
-            FROM Posts p
-            JOIN Users u ON p.author_id = u.id
-            WHERE p.id = ?
-        `, [postId]);
+        const post = await Post.findById(postId);
 
-        if (posts.length === 0) {
+        if (!post) {
             return res.status(404).json({ error: 'Post not found' });
         }
 
-        res.status(200).json(posts[0]);
+        // Block access to someone else’s inactive post
+        const isAuthor = req.user && req.user.id === post.author_id;
+        const isAdmin = req.user && req.user.role === 'admin';
 
+        if (post.status === 'inactive' && !isAuthor && !isAdmin) {
+            return res.status(403).json({ error: 'Access denied to this inactive post' });
+        }
+
+        res.status(200).json(post);
     } catch (error) {
         console.error('Get post by ID error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -132,13 +63,12 @@ exports.updatePost = async (req, res) => {
         const userId = req.user.id;
         const userRole = req.user.role;
 
-        const [posts] = await db.query('SELECT author_id FROM Posts WHERE id = ?', [postId]);
-
-        if (posts.length === 0) {
+        const post = await Post.findById(postId);
+        if (!post) {
             return res.status(404).json({ error: 'Post not found' });
         }
 
-        const isAuthor = posts[0].author_id === userId;
+        const isAuthor = post.author_id === userId;
         const isAdmin = userRole === 'admin';
 
         if (!isAuthor && !isAdmin) {
@@ -148,50 +78,33 @@ exports.updatePost = async (req, res) => {
         let updateFields = [];
         let queryParams = [];
 
-        if (isAdmin) {
+        // Admin: can change the status, but not the content
+        if (isAdmin && !isAuthor) {
+            if (title !== undefined || content !== undefined || categories !== undefined) {
+                return res.status(403).json({ error: 'Admins cannot edit content of other users' });
+            }
             if (status !== undefined) {
                 updateFields.push('status = ?');
                 queryParams.push(status);
             }
-            
-            if (!isAuthor && (title !== undefined || content !== undefined)) {
-                return res.status(403).json({ error: 'Admins cannot edit content of other users' });
-            }
-            
-            if (isAuthor) {
-                if (title !== undefined) { updateFields.push('title = ?'); queryParams.push(title); }
-                if (content !== undefined) { updateFields.push('content = ?'); queryParams.push(content); }
-            }
         } 
-        else {
-            if (status !== undefined) {
-                return res.status(403).json({ error: 'Only admins can change post status' });
-            }
+        // Author: can change everything
+        else if (isAuthor) {
             if (title !== undefined) { updateFields.push('title = ?'); queryParams.push(title); }
             if (content !== undefined) { updateFields.push('content = ?'); queryParams.push(content); }
+            if (status !== undefined) { updateFields.push('status = ?'); queryParams.push(status); }
         }
 
         if (updateFields.length > 0) {
-            queryParams.push(postId);
-            const queryString = `UPDATE Posts SET ${updateFields.join(', ')} WHERE id = ?`;
-            await db.query(queryString, queryParams);
+            await Post.update(postId, updateFields, queryParams);
         }
 
-        if (categories && Array.isArray(categories)) {
-            await db.query('DELETE FROM Post_Category WHERE post_id = ?', [postId]);
-
-            if (categories.length > 0) {
-                for (let categoryId of categories) {
-                    await db.query(
-                        'INSERT INTO Post_Category (post_id, category_id) VALUES (?, ?)',
-                        [postId, categoryId]
-                    );
-                }
-            }
+        if (isAuthor && categories && Array.isArray(categories)) {
+            await Post.clearCategories(postId);
+            await Post.addCategories(postId, categories);
         }
 
         res.status(200).json({ message: 'Post updated successfully' });
-
     } catch (error) {
         console.error('Update post by ID error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -201,39 +114,32 @@ exports.updatePost = async (req, res) => {
 exports.deletePost = async (req, res) => {
     try {
         const postId = req.params.id;
-        const userId = req.user.id; 
+        const userId = req.user.id;
+        const userRole = req.user.role;
 
-        const [result] = await db.query(
-            'DELETE FROM Posts WHERE id = ? AND author_id = ?',
-            [postId, userId]
-        );
-
-        if (result.affectedRows === 0) {
+        const post = await Post.findById(postId);
+        if (!post) {
             return res.status(404).json({ error: 'Post not found' });
         }
 
-        res.status(200).json({ message: 'Post deleted successfully' });
+        // Admins now have the right to delete other people’s posts
+        if (userRole !== 'admin' && userId !== post.author_id) {
+            return res.status(403).json({ error: 'Unauthorized to delete this post' });
+        }
 
+        await Post.delete(postId);
+        res.status(200).json({ message: 'Post deleted successfully' });
     } catch (error) {
         console.error('Delete post by ID error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };
 
-
 exports.getPostCategories = async (req, res) => {
     try {
         const postId = req.params.postId;
-
-        const [result] = await db.query(`
-            SELECT c.id, c.title, c.description 
-            FROM Categories c
-            JOIN Post_Category pc ON c.id = pc.category_id
-            WHERE pc.post_id = ?
-        `, [postId]);
-
-        res.status(200).json(result);
-
+        const categories = await Post.getCategories(postId);
+        res.status(200).json(categories);
     } catch (error) {
         console.error('Get post categories error:', error);
         res.status(500).json({ error: 'Internal server error' });

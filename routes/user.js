@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const userController = require('../controllers/userController');
-const authMiddleware = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 const upload = multer({ dest: 'uploads/avatars/' }); // Configure multer for file uploads
 
 // Define the PATCH endpoint for updating the current user's profile

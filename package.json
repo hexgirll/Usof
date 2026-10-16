@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "db:init": "node db-init.js",
     "dev": "nodemon index.js"
   },
   "repository": {
@@ -20,11 +21,17 @@
   },
   "homepage": "https://github.com/hexgirll/Usof#readme",
   "dependencies": {
+    "@adminjs/express": "^6.1.1",
+    "@adminjs/sql": "^2.2.6",
+    "adminjs": "^7.8.17",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-formidable": "^1.2.0",
+    "express-session": "^1.19.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.4.0",
+    "mysql": "^2.18.1",
     "mysql2": "^3.24.4",
     "nodemailer": "^10.0.16"
   },

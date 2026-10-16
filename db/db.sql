@@ -1,6 +1,9 @@
 CREATE DATABASE IF NOT EXISTS usof_backend;
-
 USE usof_backend;
+
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS Likes, Comments, Post_Category, Posts, Categories, Users;
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE IF NOT EXISTS Users (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -10,6 +13,7 @@ CREATE TABLE IF NOT EXISTS Users (
     email VARCHAR(255) UNIQUE NOT NULL,
     profile_picture VARCHAR(255) DEFAULT 'default_avatar.png',
     rating INT DEFAULT 0,
+    is_verified BOOLEAN DEFAULT FALSE,
     role ENUM('user', 'admin') DEFAULT 'user'
 );
 
@@ -30,32 +34,34 @@ CREATE TABLE IF NOT EXISTS Posts (
 );
 
 CREATE TABLE IF NOT EXISTS Post_Category (
-	post_id INT NOT NULL,
-    FOREIGN KEY (post_id) REFERENCES Posts(id) ON DELETE CASCADE,
+    post_id INT NOT NULL,
     category_id INT NOT NULL,
-    FOREIGN KEY (category_id) REFERENCES Categories(id) ON DELETE CASCADE,
-    PRIMARY KEY (post_id, category_id)
+    PRIMARY KEY (post_id, category_id),
+    FOREIGN KEY (post_id) REFERENCES Posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES Categories(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS Comments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     author_id INT NOT NULL,
     post_id INT NOT NULL,
+    parent_id INT NULL DEFAULT NULL,
     content TEXT NOT NULL,
     publish_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status ENUM('active', 'inactive') DEFAULT 'active',
     FOREIGN KEY (author_id) REFERENCES Users(id) ON DELETE CASCADE,
-    FOREIGN KEY (post_id) REFERENCES Posts(id) ON DELETE CASCADE
+    FOREIGN KEY (post_id) REFERENCES Posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES Comments(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS Likes (
-	id INT AUTO_INCREMENT PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     author_id INT NOT NULL,
     publish_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     post_id INT NULL,
     comment_id INT NULL,
     type ENUM('like', 'dislike') NOT NULL,
-	FOREIGN KEY (author_id) REFERENCES Users(id) ON DELETE CASCADE,
+    FOREIGN KEY (author_id) REFERENCES Users(id) ON DELETE CASCADE,
     FOREIGN KEY (post_id) REFERENCES Posts(id) ON DELETE CASCADE,
     FOREIGN KEY (comment_id) REFERENCES Comments(id) ON DELETE CASCADE,
     UNIQUE(author_id, post_id),

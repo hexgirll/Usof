@@ -6,34 +6,45 @@ const userRoutes = require('./routes/user');
 const postRoutes = require('./routes/post');
 const commentRoutes = require('./routes/comment');
 const categoryRoutes = require('./routes/category');
+const setupAdminPanel = require('./admin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware to parse incoming JSON requests
-app.use(express.json());
-
-// Connect the authentication routes prefix
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/posts', postRoutes);
-app.use('/api/comments', commentRoutes);
-app.use('/api/categories', categoryRoutes);
-
-// Basic route to test if the server is alive
-app.get('/', (req, res) => {
-    res.json({ message: 'Usof API is running!' });
-});
-
-// Start the server and verify database connection
-app.listen(PORT, async () => {
-    console.log(`Server is running on port ${PORT}`);
-    
+// Function to start the server asynchronously
+const startServer = async () => {
     try {
-        // Send a simple query to test the pool connection
+        // 1. Initialize AdminJS BEFORE parsing JSON
+        // (AdminJS uses its own parsers like express-formidable, placing it here prevents conflicts)
+        await setupAdminPanel(app);
+
+        // 2. Middleware to parse incoming JSON requests for our API
+        app.use(express.json());
+
+        // 3. Connect API routes
+        app.use('/api/auth', authRoutes);
+        app.use('/api/users', userRoutes);
+        app.use('/api/posts', postRoutes);
+        app.use('/api/comments', commentRoutes);
+        app.use('/api/categories', categoryRoutes);
+
+        // Basic route to test API
+        app.get('/', (req, res) => {
+            res.json({ message: 'GeoChill API is running!' });
+        });
+
+        // 4. Verify database connection
         await db.query('SELECT 1');
         console.log('Database connected successfully.');
+
+        // 5. Start listening
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
+        });
+
     } catch (error) {
-        console.error('Database connection failed:', error.message);
+        console.error('Failed to start server:', error);
     }
-});
+};
+
+startServer();

@@ -1,8 +1,9 @@
-const db = require('../config/db');
+const Comment = require('../models/Comment');
+const Post = require('../models/Post');
 
 exports.createComment = async (req, res) => {
     try {
-        const { content } = req.body;
+        const { content, parent_id } = req.body;
         const postId = req.params.postId;
         const authorId = req.user.id;
 
@@ -10,11 +11,24 @@ exports.createComment = async (req, res) => {
             return res.status(400).json({ error: 'Comment content is required' });
         }
 
-        const [result] = await db.query(`
-            INSERT INTO Comments (content, post_id, author_id)
-            VALUES (?, ?, ?)
-        `, [content, postId, authorId]);
+        // Check if the post exists and is active
+        const post = await Post.findById(postId);
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+        if (post.status === 'inactive') {
+            return res.status(403).json({ error: 'Cannot comment on an inactive post' });
+        }
 
+        // Validate the parent comment, if this is a nested comment
+        if (parent_id) {
+            const parentComment = await Comment.findById(parent_id);
+            if (!parentComment || parentComment.post_id != postId) {
+                return res.status(400).json({ error: 'Invalid parent comment' });
+            }
+        }
+
+        await Comment.create(authorId, postId, parent_id, content);
         res.status(201).json({ message: 'Comment created successfully' });
 
     } catch (error) {
@@ -26,17 +40,12 @@ exports.createComment = async (req, res) => {
 exports.getCommentById = async (req, res) => {
     try {
         const commentId = req.params.id;
-        const [comments] = await db.query(`
-            SELECT c.id, c.content, c.publish_date, c.status, u.login AS author
-            FROM Comments c
-            JOIN Users u ON c.author_id = u.id
-            WHERE c.id = ?
-        `, [commentId]);
+        const comment = await Comment.findById(commentId);
 
-        if (comments.length === 0) {
+        if (!comment) {
             return res.status(404).json({ error: 'Comment not found' });
         }
-        res.status(200).json(comments[0]);
+        res.status(200).json(comment);
     } catch (error) {
         console.error('Get comment by ID error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -46,17 +55,8 @@ exports.getCommentById = async (req, res) => {
 exports.getPostComments = async (req, res) => {
     try {
         const postId = req.params.postId;
-
-        const [result] = await db.query(`
-            SELECT c.id, c.content, c.publish_date, c.status, u.login AS author
-            FROM Comments c
-            JOIN Users u ON c.author_id = u.id
-            WHERE c.post_id = ?
-            ORDER BY c.publish_date ASC
-        `, [postId]);
-
-        res.status(200).json(result);
-
+        const comments = await Comment.findAllByPostId(postId);
+        res.status(200).json(comments);
     } catch (error) {
         console.error('Get post comments error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -65,38 +65,32 @@ exports.getPostComments = async (req, res) => {
 
 exports.updateComment = async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status, content } = req.body;
 
+        if (content) {
+            return res.status(403).json({ error: 'Comment content cannot be edited, only status' });
+        }
         if (!status) {
             return res.status(400).json({ error: 'Status is required' });
         }
 
         const commentId = req.params.id;
+        const comment = await Comment.findById(commentId);
 
-        const [comment] = await db.query(`
-            SELECT author_id FROM Comments WHERE id = ?
-        `, [commentId]);
-
-        if (comment.length === 0) {
+        if (!comment) {
             return res.status(404).json({ error: 'Comment not found' });
         }
 
-        if (req.user.role !== 'admin' && req.user.id !== comment[0].author_id) {
+        // Only admin or the author of the comment can update its status
+        if (req.user.role !== 'admin' && req.user.id !== comment.author_id) {
             return res.status(403).json({ error: 'Unauthorized to update this comment' });
         }
 
-        const [result] = await db.query(`
-            UPDATE Comments SET status = ? WHERE id = ?
-        `, [status, commentId]);
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Comment not found or unauthorized' });
-        }
-
-        res.status(200).json({ message: 'Comment updated successfully' });
+        await Comment.updateStatus(commentId, status);
+        res.status(200).json({ message: 'Comment status updated successfully' });
 
     } catch (error) {
-        console.error('Update comment by ID error:', error);
+        console.error('Update comment error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };
@@ -104,32 +98,22 @@ exports.updateComment = async (req, res) => {
 exports.deleteComment = async (req, res) => {
     try {
         const commentId = req.params.id;
+        const comment = await Comment.findById(commentId);
 
-        const [comment] = await db.query(`
-            SELECT author_id FROM Comments WHERE id = ?
-        `, [commentId]);
-
-        if (comment.length === 0) {
+        if (!comment) {
             return res.status(404).json({ error: 'Comment not found' });
         }
 
-        if (req.user.role !== 'admin' && req.user.id !== comment[0].author_id) {
+        // Only admin or the author of the comment can delete it
+        if (req.user.role !== 'admin' && req.user.id !== comment.author_id) {
             return res.status(403).json({ error: 'Unauthorized to delete this comment' });
         }
 
-        const [result] = await db.query(
-            'DELETE FROM Comments WHERE id = ?',
-            [commentId]
-        );
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Comment not found or unauthorized' });
-        }
-
+        await Comment.delete(commentId);
         res.status(200).json({ message: 'Comment deleted successfully' });
 
     } catch (error) {
-        console.error('Delete comment by ID error:', error);
+        console.error('Delete comment error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };
