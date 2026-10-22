@@ -35,20 +35,12 @@ exports.getAllPosts = async (req, res) => {
 exports.getPostById = async (req, res) => {
     try {
         const postId = req.params.id;
-        const post = await Post.findById(postId);
+        // Передаємо req.user, щоб власник/адмін міг завантажити свій неактивний пост
+        const post = await Post.findById(postId, req.user);
 
         if (!post) {
-            return res.status(404).json({ error: 'Post not found' });
+            return res.status(404).json({ error: 'Post not found or access denied' });
         }
-
-        // Block access to someone else’s inactive post
-        const isAuthor = req.user && req.user.id === post.author_id;
-        const isAdmin = req.user && req.user.role === 'admin';
-
-        if (post.status === 'inactive' && !isAuthor && !isAdmin) {
-            return res.status(403).json({ error: 'Access denied to this inactive post' });
-        }
-
         res.status(200).json(post);
     } catch (error) {
         console.error('Get post by ID error:', error);
@@ -58,72 +50,59 @@ exports.getPostById = async (req, res) => {
 
 exports.updatePost = async (req, res) => {
     try {
+        const { id } = req.params;
         const { title, content, categories, status } = req.body;
-        const postId = req.params.id;
-        const userId = req.user.id;
-        const userRole = req.user.role;
-
-        const post = await Post.findById(postId);
+        
+        const post = await Post.findById(id, req.user);
         if (!post) {
-            return res.status(404).json({ error: 'Post not found' });
+            return res.status(404).json({ error: 'Post not found or access denied' });
         }
 
-        const isAuthor = post.author_id === userId;
-        const isAdmin = userRole === 'admin';
+        const isOwner = req.user && post.author_id === req.user.id;
+        const isAdmin = req.user && req.user.role === 'admin';
 
-        if (!isAuthor && !isAdmin) {
-            return res.status(403).json({ error: 'Unauthorized to update this post' });
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ error: 'Access denied.' });
         }
 
-        let updateFields = [];
-        let queryParams = [];
-
-        // Admin: can change the status, but not the content
-        if (isAdmin && !isAuthor) {
-            if (title !== undefined || content !== undefined || categories !== undefined) {
-                return res.status(403).json({ error: 'Admins cannot edit content of other users' });
-            }
-            if (status !== undefined) {
-                updateFields.push('status = ?');
-                queryParams.push(status);
-            }
-        } 
-        // Author: can change everything
-        else if (isAuthor) {
-            if (title !== undefined) { updateFields.push('title = ?'); queryParams.push(title); }
-            if (content !== undefined) { updateFields.push('content = ?'); queryParams.push(content); }
-            if (status !== undefined) { updateFields.push('status = ?'); queryParams.push(status); }
+        // PDF Rules: Admin cannot edit content/title of OTHER people's posts
+        if (isAdmin && !isOwner && (title !== undefined || content !== undefined)) {
+            return res.status(403).json({ error: 'Admins can only change status and categories of other users\' posts.' });
         }
 
-        if (updateFields.length > 0) {
-            await Post.update(postId, updateFields, queryParams);
+        const updateData = {};
+        if (isOwner) {
+            if (title !== undefined) updateData.title = title;
+            if (content !== undefined) updateData.content = content;
+        }
+        if (status !== undefined) updateData.status = status;
+
+        if (Object.keys(updateData).length > 0) {
+            await Post.update(id, updateData);
         }
 
-        if (isAuthor && categories && Array.isArray(categories)) {
-            await Post.clearCategories(postId);
-            await Post.addCategories(postId, categories);
+        if (categories && Array.isArray(categories)) {
+            await Post.updateCategories(id, categories);
         }
 
-        res.status(200).json({ message: 'Post updated successfully' });
+        res.json({ message: 'Post updated successfully' });
     } catch (error) {
-        console.error('Update post by ID error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Update post error:', error);
+        res.status(500).json({ error: 'Internal server error' }); // Заховали error.message
     }
 };
 
 exports.deletePost = async (req, res) => {
     try {
         const postId = req.params.id;
-        const userId = req.user.id;
-        const userRole = req.user.role;
-
-        const post = await Post.findById(postId);
+        // Передаємо req.user, щоб не було 404 на власний неактивний пост
+        const post = await Post.findById(postId, req.user);
+        
         if (!post) {
-            return res.status(404).json({ error: 'Post not found' });
+            return res.status(404).json({ error: 'Post not found or access denied' });
         }
 
-        // Admins now have the right to delete other people’s posts
-        if (userRole !== 'admin' && userId !== post.author_id) {
+        if (req.user.role !== 'admin' && req.user.id !== post.author_id) {
             return res.status(403).json({ error: 'Unauthorized to delete this post' });
         }
 

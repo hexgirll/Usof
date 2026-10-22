@@ -23,7 +23,7 @@ exports.register = async (req, res) => {
             return res.status(400).json({ error: 'Passwords do not match' });
         }
 
-        // Use Model instead of raw SQL
+        // Check for duplicates using OR (either login or email is taken)
         const existingUsers = await User.findByLoginOrEmail(login, email);
         if (existingUsers.length > 0) {
             return res.status(409).json({ error: 'User with this login or email already exists' });
@@ -31,13 +31,12 @@ exports.register = async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Use Model to create user
         const newUserId = await User.create({
             login,
             password: hashedPassword,
             email,
             role: 'user',
-            full_name: login // Temporary full_name fallback
+            full_name: login 
         });
 
         const verificationToken = jwt.sign(
@@ -46,7 +45,6 @@ exports.register = async (req, res) => {
             { expiresIn: '24h' }
         );
 
-        // Link should point to Frontend URL, not backend API directly
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         const confirmUrl = `${frontendUrl}/confirm-email?token=${verificationToken}`;
 
@@ -72,8 +70,8 @@ exports.login = async (req, res) => {
             return res.status(400).json({ error: 'All fields (login, email, password) are required' });
         }
 
-        const existingUsers = await User.findByLoginOrEmail(login, email);
-        const user = existingUsers[0];
+        // Use the new strict AND method
+        const user = await User.findByLoginAndEmail(login, email);
 
         if (!user) {
             return res.status(401).json({ error: 'Invalid credentials' });

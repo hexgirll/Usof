@@ -11,6 +11,12 @@ class User {
         return users;
     }
 
+    // New method for strict login verification (AND condition)
+    static async findByLoginAndEmail(login, email) {
+        const [users] = await db.query('SELECT * FROM Users WHERE login = ? AND email = ?', [login, email]);
+        return users[0];
+    }
+
     static async findByEmail(email) {
         const [users] = await db.query('SELECT * FROM Users WHERE email = ?', [email]);
         return users[0];
@@ -47,14 +53,35 @@ class User {
         return users;
     }
 
-    static async findPostsByUserId(userId) {
-        const [posts] = await db.query(`
-            SELECT p.id, p.title, p.content, p.publish_date, p.status, u.login AS author
+    static async findPostsByUserId(userId, requester = null) {
+        const isOwnerOrAdmin = requester && (requester.id === parseInt(userId) || requester.role === 'admin');
+        
+        let query = `
+            SELECT 
+                p.id, 
+                p.title, 
+                p.content, 
+                p.publish_date, 
+                p.status, 
+                u.login AS author,
+                COALESCE((
+                    SELECT SUM(CASE WHEN type = 'like' THEN 1 WHEN type = 'dislike' THEN -1 ELSE 0 END)
+                    FROM Likes
+                    WHERE post_id = p.id
+                ), 0) AS rating
             FROM Posts p
             JOIN Users u ON p.author_id = u.id
             WHERE p.author_id = ?
-            ORDER BY p.publish_date DESC
-        `, [userId]);
+        `;
+        const queryParams = [userId];
+
+        if (!isOwnerOrAdmin) {
+            query += ` AND p.status = 'active'`;
+        }
+
+        query += ` ORDER BY p.publish_date DESC`;
+
+        const [posts] = await db.query(query, queryParams);
         return posts;
     }
 

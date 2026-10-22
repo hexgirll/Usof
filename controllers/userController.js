@@ -49,7 +49,8 @@ exports.updateProfile = async (req, res) => {
 exports.getUserPosts = async (req, res) => {
     try {
         const userId = req.params.id;
-        const posts = await User.findPostsByUserId(userId);
+        // Send req.user to findPostsByUserId to avoid 404 for own inactive posts
+        const posts = await User.findPostsByUserId(userId, req.user);
         res.status(200).json(posts);
     } catch (error) {
         console.error('Get user posts error:', error);
@@ -59,7 +60,11 @@ exports.getUserPosts = async (req, res) => {
 
 exports.getAllUsers = async (req, res) => {
     try {
-        const users = await User.findAll();
+        let users = await User.findAll();
+        // If the user is not an admin, remove email from the response
+        if (!req.user || req.user.role !== 'admin') {
+            users = users.map(u => ({ ...u, email: undefined }));
+        }
         res.status(200).json(users);
     } catch (error) {
         console.error('Get all users error:', error);
@@ -69,11 +74,11 @@ exports.getAllUsers = async (req, res) => {
 
 exports.getUserById = async (req, res) => {
     try {
-        const userId = req.params.id;
-        const user = await User.findById(userId);
-
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        
+        if (!req.user || (req.user.role !== 'admin' && req.user.id !== user.id)) {
+            user.email = undefined;
         }
         res.status(200).json(user);
     } catch (error) {

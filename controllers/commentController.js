@@ -11,10 +11,10 @@ exports.createComment = async (req, res) => {
             return res.status(400).json({ error: 'Comment content is required' });
         }
 
-        // Check if the post exists and is active
-        const post = await Post.findById(postId);
+        // Check if the post exists and is accessible
+        const post = await Post.findById(postId, req.user);
         if (!post) {
-            return res.status(404).json({ error: 'Post not found' });
+            return res.status(404).json({ error: 'Post not found or inaccessible' });
         }
         if (post.status === 'inactive') {
             return res.status(403).json({ error: 'Cannot comment on an inactive post' });
@@ -54,8 +54,16 @@ exports.getCommentById = async (req, res) => {
 
 exports.getPostComments = async (req, res) => {
     try {
-        const postId = req.params.postId;
-        const comments = await Comment.findAllByPostId(postId);
+        const { postId } = req.params;
+
+        // 1. Check if post exists and requester has rights to view it
+        const post = await Post.findById(postId, req.user);
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found or inaccessible' });
+        }
+
+        // 2. Fetch comments using the correct method name 'findAllByPostId'
+        const comments = await Comment.findAllByPostId(postId, req.user);
         res.status(200).json(comments);
     } catch (error) {
         console.error('Get post comments error:', error);

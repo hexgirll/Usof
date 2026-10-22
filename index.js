@@ -1,27 +1,39 @@
 const express = require('express');
+const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
-const db = require('./config/db');
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/user');
-const postRoutes = require('./routes/post');
-const commentRoutes = require('./routes/comment');
-const categoryRoutes = require('./routes/category');
-const setupAdminPanel = require('./admin');
+
+const ensureDatabaseInitialized = require('./db-init');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // Function to start the server asynchronously
 const startServer = async () => {
     try {
-        // 1. Initialize AdminJS BEFORE parsing JSON
-        // (AdminJS uses its own parsers like express-formidable, placing it here prevents conflicts)
+        // 1. Automatically check and initialize the database if missing
+        await ensureDatabaseInitialized();
+
+        // 2. Load models, db connection pool & AdminJS after DB exists
+        const db = require('./config/db');
+        const setupAdminPanel = require('./admin');
+        const authRoutes = require('./routes/auth');
+        const userRoutes = require('./routes/user');
+        const postRoutes = require('./routes/post');
+        const commentRoutes = require('./routes/comment');
+        const categoryRoutes = require('./routes/category');
+
+        // 3. Initialize AdminJS BEFORE parsing JSON
         await setupAdminPanel(app);
 
-        // 2. Middleware to parse incoming JSON requests for our API
+        // CORS middleware to allow requests from the frontend
+        app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000' }));
         app.use(express.json());
 
-        // 3. Connect API routes
+        // Serve static files from the uploads directory
+        app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+        // Connect API routes
         app.use('/api/auth', authRoutes);
         app.use('/api/users', userRoutes);
         app.use('/api/posts', postRoutes);
@@ -33,11 +45,11 @@ const startServer = async () => {
             res.json({ message: 'GeoChill API is running!' });
         });
 
-        // 4. Verify database connection
+        // Verify database connection pool
         await db.query('SELECT 1');
         console.log('Database connected successfully.');
 
-        // 5. Start listening
+        // Start listening
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
         });
