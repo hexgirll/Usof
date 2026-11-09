@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-const User = require('../models/User'); // Import our new OOP Model
+const User = require('../models/User');
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -11,6 +11,9 @@ const transporter = nodemailer.createTransport({
     }
 });
 
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const isValidPassword = (pwd) => pwd && pwd.length >= 6;
+
 exports.register = async (req, res) => {
     try {
         const { login, password, password_confirmation, email } = req.body;
@@ -19,11 +22,18 @@ exports.register = async (req, res) => {
             return res.status(400).json({ error: 'All fields are required' });
         }
 
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+
+        if (!isValidPassword(password)) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+        }
+
         if (password !== password_confirmation) {
             return res.status(400).json({ error: 'Passwords do not match' });
         }
 
-        // Check for duplicates using OR (either login or email is taken)
         const existingUsers = await User.findByLoginOrEmail(login, email);
         if (existingUsers.length > 0) {
             return res.status(409).json({ error: 'User with this login or email already exists' });
@@ -49,9 +59,30 @@ exports.register = async (req, res) => {
         const confirmUrl = `${frontendUrl}/confirm-email?token=${verificationToken}`;
 
         await transporter.sendMail({
+            from: process.env.EMAIL_USER,
             to: email,
             subject: "GeoChill - Confirm your email",
-            html: `<p>Click the link to confirm your email: <a href="${confirmUrl}">${confirmUrl}</a></p>`
+            html: `
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #eaeaea; border-radius: 12px; background-color: #ffffff;">
+                    <h2 style="color: #2c3e50; text-align: center; margin-bottom: 20px;">Welcome to GeoChill! 🌍</h2>
+                    <p style="color: #555; font-size: 16px; line-height: 1.5; text-align: center;">
+                        We're excited to have you on board. Please confirm your email address by clicking the button below to complete your registration.
+                    </p>
+                    <div style="text-align: center; margin: 35px 0;">
+                        <a href="${confirmUrl}" style="background-color: #2ecc71; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 25px; font-weight: bold; font-size: 16px; display: inline-block;">
+                            Confirm Email Address
+                        </a>
+                    </div>
+                    <p style="color: #7f8c8d; font-size: 14px; text-align: center;">
+                        Or copy and paste this link into your browser:<br>
+                        <a href="${confirmUrl}" style="color: #3498db; word-break: break-all;">${confirmUrl}</a>
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #eaeaea; margin: 30px 0;">
+                    <p style="color: #95a5a6; font-size: 12px; text-align: center;">
+                        If you didn't create an account with GeoChill, please ignore this email.
+                    </p>
+                </div>
+            `
         });
 
         res.status(201).json({ message: 'User registered successfully, confirmation email sent', userId: newUserId });
@@ -70,7 +101,10 @@ exports.login = async (req, res) => {
             return res.status(400).json({ error: 'All fields (login, email, password) are required' });
         }
 
-        // Use the new strict AND method
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+
         const user = await User.findByLoginAndEmail(login, email);
 
         if (!user) {
@@ -117,13 +151,12 @@ exports.passwordResetRequest = async (req, res) => {
     try {
         const { email } = req.body;
 
-        if (!email) {
-            return res.status(400).json({ error: 'Email is required' });
+        if (!email || !isValidEmail(email)) {
+            return res.status(400).json({ error: 'A valid email is required' });
         }
 
         const user = await User.findByEmail(email);
         if (!user) {
-            // Return 200 even if user not found to prevent email enumeration attacks
             return res.status(200).json({ message: 'If this email is registered, a reset link has been sent.' });
         }
 
@@ -135,11 +168,30 @@ exports.passwordResetRequest = async (req, res) => {
         await transporter.sendMail({
             from: process.env.EMAIL_USER,
             to: email,
-            subject: 'GeoChill - Password Reset',
-            text: `To reset your password, please click the link below.\n\n${resetLink}\n\nThis link will expire in 15 minutes.`
+            subject: 'GeoChill - Password Reset Request',
+            html: `
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #eaeaea; border-radius: 12px; background-color: #ffffff;">
+                    <h2 style="color: #2c3e50; text-align: center; margin-bottom: 20px;">Reset Your Password 🔒</h2>
+                    <p style="color: #555; font-size: 16px; line-height: 1.5; text-align: center;">
+                        We received a request to reset the password for your GeoChill account. Click the button below to choose a new password.
+                    </p>
+                    <div style="text-align: center; margin: 35px 0;">
+                        <a href="${resetLink}" style="background-color: #3498db; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 25px; font-weight: bold; font-size: 16px; display: inline-block;">
+                            Reset Password
+                        </a>
+                    </div>
+                    <p style="color: #7f8c8d; font-size: 14px; text-align: center;">
+                        Or copy and paste this link into your browser:<br>
+                        <a href="${resetLink}" style="color: #3498db; word-break: break-all;">${resetLink}</a>
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #eaeaea; margin: 30px 0;">
+                    <p style="color: #95a5a6; font-size: 12px; text-align: center;">
+                        If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
+                    </p>
+                </div>
+            `
         });
 
-        // Removed resetLink from JSON response to fix security leak
         res.status(200).json({ message: 'If this email is registered, a reset link has been sent.' });
 
     } catch (error) {
@@ -155,6 +207,10 @@ exports.passwordReset = async (req, res) => {
 
         if (!token || !password) {
             return res.status(400).json({ error: 'Token and new password are required' });
+        }
+
+        if (!isValidPassword(password)) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
         }
         
         let decoded;
@@ -179,9 +235,6 @@ exports.passwordReset = async (req, res) => {
     }
 };
 
-// Logout route is now implemented
 exports.logout = (req, res) => {
-    // In JWT, logout is handled client-side by deleting the token.
-    // We just return a success message here.
     res.status(200).json({ message: 'Logged out successfully' });
 };

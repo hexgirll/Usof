@@ -30,7 +30,7 @@ exports.optionalAuth = (req, res, next) => {
             try {
                 req.user = jwt.verify(token, process.env.JWT_SECRET);
             } catch (error) {
-                // Ignore invalid token, proceed as a guest user
+                // Bad token: continue as a guest
             }
         }
     }

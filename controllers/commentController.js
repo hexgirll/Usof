@@ -11,7 +11,6 @@ exports.createComment = async (req, res) => {
             return res.status(400).json({ error: 'Comment content is required' });
         }
 
-        // Check if the post exists and is accessible
         const post = await Post.findById(postId, req.user);
         if (!post) {
             return res.status(404).json({ error: 'Post not found or inaccessible' });
@@ -20,7 +19,6 @@ exports.createComment = async (req, res) => {
             return res.status(403).json({ error: 'Cannot comment on an inactive post' });
         }
 
-        // Validate the parent comment, if this is a nested comment
         if (parent_id) {
             const parentComment = await Comment.findById(parent_id);
             if (!parentComment || parentComment.post_id != postId) {
@@ -45,6 +43,12 @@ exports.getCommentById = async (req, res) => {
         if (!comment) {
             return res.status(404).json({ error: 'Comment not found' });
         }
+
+        const post = await Post.findById(comment.post_id, req.user || null);
+        if (!post) {
+            return res.status(403).json({ error: 'Access denied to this comment because the parent post is inaccessible' });
+        }
+
         res.status(200).json(comment);
     } catch (error) {
         console.error('Get comment by ID error:', error);
@@ -56,13 +60,11 @@ exports.getPostComments = async (req, res) => {
     try {
         const { postId } = req.params;
 
-        // 1. Check if post exists and requester has rights to view it
         const post = await Post.findById(postId, req.user);
         if (!post) {
             return res.status(404).json({ error: 'Post not found or inaccessible' });
         }
 
-        // 2. Fetch comments using the correct method name 'findAllByPostId'
         const comments = await Comment.findAllByPostId(postId, req.user);
         res.status(200).json(comments);
     } catch (error) {
@@ -81,6 +83,10 @@ exports.updateComment = async (req, res) => {
         if (!status) {
             return res.status(400).json({ error: 'Status is required' });
         }
+        
+        if (!['active', 'inactive'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid status. Must be active or inactive.' });
+        }
 
         const commentId = req.params.id;
         const comment = await Comment.findById(commentId);
@@ -89,7 +95,6 @@ exports.updateComment = async (req, res) => {
             return res.status(404).json({ error: 'Comment not found' });
         }
 
-        // Only admin or the author of the comment can update its status
         if (req.user.role !== 'admin' && req.user.id !== comment.author_id) {
             return res.status(403).json({ error: 'Unauthorized to update this comment' });
         }
@@ -112,7 +117,6 @@ exports.deleteComment = async (req, res) => {
             return res.status(404).json({ error: 'Comment not found' });
         }
 
-        // Only admin or the author of the comment can delete it
         if (req.user.role !== 'admin' && req.user.id !== comment.author_id) {
             return res.status(403).json({ error: 'Unauthorized to delete this comment' });
         }

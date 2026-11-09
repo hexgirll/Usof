@@ -1,0 +1,84 @@
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    outline: none !important;
+}
+
+.metaRow {
+    display: flex;
+    gap: 20px;
+    color: #666;
+    font-size: 0.9em;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.link { color: #3498db; text-decoration: none; }
+
+.controlsRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 12px 15px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #eee;
+}
+
+.sliderImage {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.btn {
+    padding: 6px 12px;
+    height: 32px;
+    box-sizing: border-box;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: bold;
+    color: white;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.statusBadge {
+    padding: 0 10px;
+    height: 32px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: bold;
+}
+
+.categoriesGroup { display: flex; align-items: center; gap: 10px; }
+.categoriesLabel { font-weight: bold; color: #555; font-size: 0.9em; }
+.categories { display: flex; gap: 8px; flex-wrap: wrap; }
+.categoryBadge { background-color: #34495e; color: #fff; padding: 4px 10px; border-radius: 15px; font-size: 0.85em; }
+.adminControls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toggleBtn { background-color: #f39c12; }
+.editBtn { background-color: #3498db; }
+.reactions { display: flex; gap: 10px; margin-top: 20px; }
+.reactionBtn { padding: 8px 15px; cursor: pointer; background-color: #ecf0f1; border: 1px solid #bdc3c7; border-radius: 4px; }
+.reactionBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.content { font-size: 1.1em; line-height: 1.6; color: #2c3e50; white-space: pre-wrap; }
+.commentForm { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
+.textarea { padding: 10px; width: 100%; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; font-family: inherit; margin-bottom: 10px; }
+.submitCommentBtn { padding: 8px 16px; align-self: flex-start; cursor: pointer; background-color: #2ecc71; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
+.deleteBtn { background-color: #e74c3c; }

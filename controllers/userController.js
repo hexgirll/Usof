@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
 exports.updateProfile = async (req, res) => {
     try {
         const userId = parseInt(req.params.id);
@@ -9,13 +11,21 @@ exports.updateProfile = async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized to update this user' });
         }
 
-        // Added login field for the presentation scenario requirement
         const { full_name, email, role, login } = req.body;
 
-        if (role && req.user.role !== 'admin') {
-            return res.status(403).json({ error: 'Only admins can change roles' });
+        if (role) {
+            if (req.user.role !== 'admin') {
+                return res.status(403).json({ error: 'Only admins can change roles' });
+            }
+            if (!['user', 'admin'].includes(role)) {
+                return res.status(400).json({ error: 'Invalid role value. Must be user or admin.' });
+            }
         }
         
+        if (email && !isValidEmail(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+
         if (!full_name && !email && !role && !login) {
             return res.status(400).json({ error: 'Please provide full_name, email, login, or role to update' });
         }
@@ -37,7 +47,6 @@ exports.updateProfile = async (req, res) => {
         res.status(200).json({ message: 'Profile updated successfully' });
 
     } catch (error) {
-        // Handle duplicate login or email errors smoothly
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ error: 'This email or login is already in use' });
         }
@@ -49,7 +58,6 @@ exports.updateProfile = async (req, res) => {
 exports.getUserPosts = async (req, res) => {
     try {
         const userId = req.params.id;
-        // Send req.user to findPostsByUserId to avoid 404 for own inactive posts
         const posts = await User.findPostsByUserId(userId, req.user);
         res.status(200).json(posts);
     } catch (error) {
@@ -61,7 +69,6 @@ exports.getUserPosts = async (req, res) => {
 exports.getAllUsers = async (req, res) => {
     try {
         let users = await User.findAll();
-        // If the user is not an admin, remove email from the response
         if (!req.user || req.user.role !== 'admin') {
             users = users.map(u => ({ ...u, email: undefined }));
         }
@@ -147,6 +154,19 @@ exports.newUser = async (req, res) => {
         if (!login || !password || !password_confirmation || !email || !role) {
             return res.status(400).json({ error: 'All fields are required' });
         }
+
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+
+        if (!['user', 'admin'].includes(role)) {
+            return res.status(400).json({ error: 'Invalid role. Must be user or admin.' });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+        }
+
         if (password !== password_confirmation) {
             return res.status(400).json({ error: 'Passwords do not match' });
         }

@@ -5,7 +5,7 @@ class Post {
         const page = parseInt(options.page, 10) || 1;
         let limit = parseInt(options.limit, 10) || 10;
         if (isNaN(limit) || limit <= 0) limit = 10;
-        if (limit > 100) limit = 100; // Безпековий ліміт від SQL-ін'єкцій та перенавантаження
+        if (limit > 100) limit = 100; 
 
         const search = options.search || '';
         const category = options.category || null;
@@ -14,7 +14,6 @@ class Post {
         const sortOrder = options.sortOrder || 'DESC';
         const user = userParam || options.user || null;
         
-        // Повернуті фільтри
         const status = options.status || null; 
         const date_from = options.date_from || null;
         const date_to = options.date_to || null;
@@ -23,7 +22,6 @@ class Post {
         const whereConditions = [];
         const queryParams = [];
 
-        // Розумний Status visibility filter
         if (!user || user.role !== 'admin') {
             if (user) {
                 if (status === 'inactive') {
@@ -45,25 +43,21 @@ class Post {
             }
         }
 
-        // Author filter
         if (author_id) {
             whereConditions.push(`p.author_id = ?`);
             queryParams.push(author_id);
         }
 
-        // Search filter
         if (search && search !== 'undefined') {
             whereConditions.push(`(p.title LIKE ? OR p.content LIKE ?)`);
             queryParams.push(`%${search}%`, `%${search}%`);
         }
 
-        // Category filter
         if (category && category !== 'undefined') {
             whereConditions.push(`p.id IN (SELECT post_id FROM Post_Category WHERE category_id = ?)`);
             queryParams.push(category);
         }
 
-        // Date interval filters
         if (date_from && date_from !== 'undefined') {
             whereConditions.push(`DATE(p.publish_date) >= ?`);
             queryParams.push(date_from);
@@ -75,7 +69,6 @@ class Post {
 
         const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-        // Standardize sort columns (use alias 'rating' computed from subquery)
         const allowedSortFields = {
             'rating': 'rating',
             'publish_date': 'p.publish_date'
@@ -83,7 +76,6 @@ class Post {
         const sortColumn = allowedSortFields[sortBy] || 'rating';
         const order = (sortOrder && sortOrder.toUpperCase() === 'ASC') ? 'ASC' : 'DESC';
 
-        // Query total count for pagination
         const countQuery = `
             SELECT COUNT(DISTINCT p.id) as total 
             FROM Posts p 
@@ -92,7 +84,8 @@ class Post {
         `;
         const [[{ total }]] = await db.query(countQuery, queryParams);
 
-        // Fetch paginated records with dynamically calculated rating
+        const userIdForReaction = user ? user.id : null;
+
         const dataQuery = `
             SELECT 
                 p.id, 
@@ -101,19 +94,39 @@ class Post {
                 p.publish_date, 
                 p.status, 
                 p.author_id, 
+                p.latitude,
+                p.longitude,
                 u.login AS author,
+                u.profile_picture AS author_avatar,
+                (SELECT COUNT(*) FROM Likes WHERE post_id = p.id AND type = 'like') AS likes_count,
+                (SELECT COUNT(*) FROM Likes WHERE post_id = p.id AND type = 'dislike') AS dislikes_count,
                 COALESCE((
                     SELECT SUM(CASE WHEN type = 'like' THEN 1 WHEN type = 'dislike' THEN -1 ELSE 0 END)
                     FROM Likes
                     WHERE post_id = p.id
-                ), 0) AS rating
+                ), 0) AS rating,
+                (SELECT type FROM Likes WHERE post_id = p.id AND author_id = ?) AS user_reaction
             FROM Posts p
             LEFT JOIN Users u ON p.author_id = u.id
             ${whereClause}
             ORDER BY ${sortColumn} ${order}, p.id DESC
             LIMIT ? OFFSET ?
         `;
-        const [posts] = await db.query(dataQuery, [...queryParams, parseInt(limit, 10), Math.max(0, parseInt(offset, 10))]);
+        
+        const [posts] = await db.query(dataQuery, [
+            userIdForReaction, 
+            ...queryParams, 
+            parseInt(limit, 10), 
+            Math.max(0, parseInt(offset, 10))
+        ]);
+
+        for (let post of posts) {
+            const [images] = await db.query(
+                'SELECT filename, sort_order FROM Post_Images WHERE post_id = ? ORDER BY sort_order ASC',
+                [post.id]
+            );
+            post.images = images.map(img => img.filename);
+        }
 
         return {
             data: posts,
@@ -126,6 +139,8 @@ class Post {
     }
 
     static async findById(id, user = null) {
+        const userIdForReaction = user ? user.id : null;
+        
         const [posts] = await db.query(`
             SELECT 
                 p.id, 
@@ -134,16 +149,22 @@ class Post {
                 p.publish_date, 
                 p.status, 
                 p.author_id, 
+                p.latitude,
+                p.longitude,
                 u.login AS author,
+                u.profile_picture AS author_avatar,
+                (SELECT COUNT(*) FROM Likes WHERE post_id = p.id AND type = 'like') AS likes_count,
+                (SELECT COUNT(*) FROM Likes WHERE post_id = p.id AND type = 'dislike') AS dislikes_count,
                 COALESCE((
                     SELECT SUM(CASE WHEN type = 'like' THEN 1 WHEN type = 'dislike' THEN -1 ELSE 0 END)
                     FROM Likes
                     WHERE post_id = p.id
-                ), 0) AS rating
+                ), 0) AS rating,
+                (SELECT type FROM Likes WHERE post_id = p.id AND author_id = ?) AS user_reaction
             FROM Posts p
             LEFT JOIN Users u ON p.author_id = u.id
             WHERE p.id = ?
-        `, [id]);
+        `, [userIdForReaction, id]);
 
         const post = posts[0];
         if (!post) return null;
@@ -153,13 +174,19 @@ class Post {
             if (!isOwnerOrAdmin) return null;
         }
 
+        const [images] = await db.query(
+            'SELECT filename, sort_order FROM Post_Images WHERE post_id = ? ORDER BY sort_order ASC',
+            [post.id]
+        );
+        post.images = images.map(img => img.filename);
+
         return post;
     }
 
-    static async create(authorId, title, content) {
+    static async create(authorId, title, content, latitude = null, longitude = null) {
         const [result] = await db.query(
-            'INSERT INTO Posts (author_id, title, content, status, publish_date) VALUES (?, ?, ?, "active", NOW())',
-            [authorId, title, content]
+            'INSERT INTO Posts (author_id, title, content, latitude, longitude, status, publish_date) VALUES (?, ?, ?, ?, ?, "active", NOW())',
+            [authorId, title, content, latitude, longitude]
         );
         return result.insertId;
     }
@@ -168,18 +195,11 @@ class Post {
         const fields = [];
         const values = [];
 
-        if (updateData.title !== undefined) {
-            fields.push('title = ?');
-            values.push(updateData.title);
-        }
-        if (updateData.content !== undefined) {
-            fields.push('content = ?');
-            values.push(updateData.content);
-        }
-        if (updateData.status !== undefined) {
-            fields.push('status = ?');
-            values.push(updateData.status);
-        }
+        if (updateData.title !== undefined) { fields.push('title = ?'); values.push(updateData.title); }
+        if (updateData.content !== undefined) { fields.push('content = ?'); values.push(updateData.content); }
+        if (updateData.status !== undefined) { fields.push('status = ?'); values.push(updateData.status); }
+        if (updateData.latitude !== undefined) { fields.push('latitude = ?'); values.push(updateData.latitude); }
+        if (updateData.longitude !== undefined) { fields.push('longitude = ?'); values.push(updateData.longitude); }
 
         if (fields.length === 0) return false;
 
@@ -208,7 +228,7 @@ class Post {
 
     static async getCategories(postId) {
         const [categories] = await db.query(`
-            SELECT c.id, c.title, c.description
+            SELECT c.id, c.title, c.description, c.icon
             FROM Categories c
             JOIN Post_Category pc ON c.id = pc.category_id
             WHERE pc.post_id = ?

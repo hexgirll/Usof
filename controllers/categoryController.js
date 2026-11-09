@@ -1,7 +1,6 @@
 const Category = require('../models/Category');
-const Post = require('../models/Post'); // Imported Post model for secure fetching
+const Post = require('../models/Post');
 
-// Create a new category (Admin only)
 exports.createCategory = async (req, res) => {
     try {
         if (req.user.role !== 'admin') {
@@ -21,7 +20,6 @@ exports.createCategory = async (req, res) => {
     }
 };
 
-// Get all available categories
 exports.getAllCategories = async (req, res) => {
     try {
         const categories = await Category.findAll();
@@ -32,7 +30,6 @@ exports.getAllCategories = async (req, res) => {
     }
 };
 
-// Get a specific category by ID
 exports.getCategoryById = async (req, res) => {
     try {
         const categoryId = req.params.id;
@@ -48,7 +45,6 @@ exports.getCategoryById = async (req, res) => {
     }
 };
 
-// Update an existing category (Admin only)
 exports.updateCategory = async (req, res) => {
     try {
         if (req.user.role !== 'admin') {
@@ -72,7 +68,6 @@ exports.updateCategory = async (req, res) => {
     }
 };
 
-// Delete a category (Admin only)
 exports.deleteCategory = async (req, res) => {
     try {
         if (req.user.role !== 'admin') {
@@ -93,11 +88,8 @@ exports.deleteCategory = async (req, res) => {
     }
 };
 
-// Get posts associated with a category ID
 exports.getPostCategories = async (req, res) => {
     try {
-        // Use the universal Post.findAll method which already handles
-        // pagination, sorting, search, and hiding inactive posts securely
         const options = { ...req.query, category: req.params.id };
         const posts = await Post.findAll(options, req.user);
         

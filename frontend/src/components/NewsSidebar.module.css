@@ -1,0 +1,190 @@
+.newsContainer {
+    position: fixed;
+    left: 0;
+    top: 100px;
+    width: 160px;
+    max-height: 70vh;
+    background-color: #fff;
+    border: 1px solid #e0e6ed;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    z-index: 100;
+    transition: all 0.3s ease;
+    overflow-y: auto;
+}
+
+.collapsedContainer {
+    position: fixed;
+    left: 0;
+    top: 100px;
+    width: 32px;
+    height: 46px;
+    background-color: #fff;
+    border: 1px solid #e0e6ed;
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    box-shadow: 3px 2px 8px rgba(0,0,0,0.08);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 100;
+    transition: all 0.2s ease;
+}
+
+.collapsedContainer:hover {
+    background-color: #f8f9fa;
+    width: 38px;
+    border-color: #3498db;
+}
+
+.expandIcon {
+    width: 20px;
+    height: 20px;
+    fill: #3498db;
+}
+
+.sidebarHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.sidebarTitle {
+    margin: 0;
+    font-size: 0.95em;
+    color: #2c3e50;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.collapseIconBtn {
+    background: none;
+    border: none;
+    color: #7f8c8d;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    transition: color 0.2s;
+}
+
+.collapseIconBtn:hover {
+    color: #3498db;
+}
+
+.collapseIconBtn svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.newsList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 70vh;
+}
+
+.newsCard {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 8px 10px;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.newsHeaderRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.newsCardTitle {
+    margin: 0;
+    font-size: 0.85em;
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.newsCardContent {
+    margin: 0;
+    font-size: 0.75em;
+    color: #555;
+    line-height: 1.3;
+}
+
+.pinnedCard {
+    border-left: 3px solid #3498db;
+    background-color: #f1f7fc;
+}
+
+.pinnedBadge {
+    font-size: 0.8em;
+    line-height: 1;
+}
+
+.newsCardTitleLink {
+    text-decoration: none;
+    color: #2c3e50;
+    font-size: 0.9em;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.newsCardTitleLink:hover {
+    color: #3498db;
+    text-decoration: underline;
+}
+
+@media (max-width: 1000px) {
+    .newsContainer {
+        position: static;
+        width: 100%;
+        margin-bottom: 20px;
+        box-sizing: border-box;
+    }
+    
+    .collapsedContainer {
+        position: static;
+        width: 100%;
+        height: auto;
+        border: 1px solid #e0e6ed;
+        border-radius: 8px;
+        padding: 10px 15px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .collapsedContainer::after {
+        content: '▼';
+        font-size: 0.8em;
+        color: #3498db;
+    }
+
+    .collapsedContainer .expandIcon {
+        display: none;
+    }
+
+    .collapsedContainer::before {
+        content: '📢 Community News';
+        font-weight: 600;
+        font-size: 0.95em;
+        color: #2c3e50;
+    }
+
+    .collapsedContainer:hover {
+        width: 100%;
+    }
+}

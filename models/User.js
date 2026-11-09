@@ -11,7 +11,6 @@ class User {
         return users;
     }
 
-    // New method for strict login verification (AND condition)
     static async findByLoginAndEmail(login, email) {
         const [users] = await db.query('SELECT * FROM Users WHERE login = ? AND email = ?', [login, email]);
         return users[0];

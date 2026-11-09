@@ -30,56 +30,60 @@ const PasswordResetRequest = () => {
     };
 
     return (
-        <div style={styles.card}>
-            <h2>Reset Password</h2>
-            <p style={styles.description}>
-                Enter your email address below and we will send you a link to reset your password.
-            </p>
+        <div style={styles.pageContainer}>
+            <div style={styles.card}>
+                <h2 style={styles.title}>Reset Password</h2>
+                <p style={styles.description}>
+                    Enter your email address below and we will send you a secure link to reset your password.
+                </p>
 
-            {status.message && (
-                <div style={{
-                    padding: '10px',
-                    marginBottom: '15px',
-                    color: status.type === 'error' ? 'red' : 'green',
-                    border: `1px solid ${status.type === 'error' ? 'red' : 'green'}`
-                }}>
-                    {status.message}
+                {status.message && (
+                    <div style={{
+                        ...styles.messageBox,
+                        backgroundColor: status.type === 'error' ? '#ffebee' : '#e8f5e9',
+                        color: status.type === 'error' ? '#c0392b' : '#27ae60',
+                    }}>
+                        {status.message}
+                    </div>
+                )}
+
+                <form onSubmit={handleSubmit} style={styles.form}>
+                    <div style={styles.field}>
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="your.email@example.com"
+                            required
+                            style={styles.input}
+                        />
+                    </div>
+
+                    <button type="submit" disabled={isSubmitting} style={styles.submitBtn}>
+                        {isSubmitting ? 'Sending...' : 'Send Reset Link'}
+                    </button>
+                </form>
+
+                <div style={styles.footer}>
+                    <Link to="/login" style={styles.link}>← Back to Login</Link>
                 </div>
-            )}
-
-            <form onSubmit={handleSubmit} style={styles.form}>
-                <div style={styles.field}>
-                    <label>Email Address</label>
-                    <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="your.email@example.com"
-                        required
-                        style={styles.input}
-                    />
-                </div>
-
-                <button type="submit" disabled={isSubmitting} style={styles.submitBtn}>
-                    {isSubmitting ? 'Sending...' : 'Send Reset Link'}
-                </button>
-            </form>
-
-            <div style={styles.footer}>
-                <Link to="/login">Back to Login</Link>
             </div>
         </div>
     );
 };
 
 const styles = {
-    card: { maxWidth: '400px', margin: '50px auto', padding: '25px', border: '1px solid #ddd', borderRadius: '8px', backgroundColor: '#fff' },
-    description: { color: '#666', fontSize: '0.9em', marginBottom: '20px' },
-    form: { display: 'flex', flexDirection: 'column', gap: '15px' },
-    field: { display: 'flex', flexDirection: 'column', gap: '5px' },
-    input: { padding: '10px', fontSize: '1em', borderRadius: '4px', border: '1px solid #ccc' },
-    submitBtn: { padding: '10px', backgroundColor: '#3498db', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '1em' },
-    footer: { marginTop: '20px', textAlign: 'center', fontSize: '0.9em' }
+    pageContainer: { minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
+    card: { width: '100%', maxWidth: '420px', padding: '40px 30px', backgroundColor: '#fff', borderRadius: '16px', boxShadow: '0 8px 24px rgba(0,0,0,0.08)', border: '1px solid #eaeaea', boxSizing: 'border-box' },
+    title: { color: '#2c3e50', fontSize: '1.8em', marginBottom: '10px', fontWeight: '700', textAlign: 'center' },
+    description: { color: '#7f8c8d', fontSize: '0.95em', marginBottom: '25px', textAlign: 'center', lineHeight: '1.5' },
+    messageBox: { padding: '12px 15px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9em', fontWeight: '600', textAlign: 'center' },
+    form: { display: 'flex', flexDirection: 'column', gap: '20px' },
+    field: { display: 'flex', flexDirection: 'column' },
+    input: { padding: '14px 16px', fontSize: '1em', borderRadius: '8px', border: '1px solid #ccd1d9', outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box', width: '100%' },
+    submitBtn: { width: '100%', padding: '14px', backgroundColor: '#3498db', color: '#fff', border: 'none', borderRadius: '25px', cursor: 'pointer', fontSize: '1.05em', fontWeight: 'bold', transition: 'opacity 0.2s' },
+    footer: { marginTop: '25px', textAlign: 'center' },
+    link: { color: '#7f8c8d', textDecoration: 'none', fontSize: '0.95em', fontWeight: '600', transition: 'color 0.2s' }
 };
 
 export default PasswordResetRequest;

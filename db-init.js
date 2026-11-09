@@ -7,7 +7,6 @@ async function ensureDatabaseInitialized() {
     try {
         console.log('Checking database status...');
         
-        // Connect to MySQL server without selecting a specific database
         const connection = await mysql.createConnection({
             host: process.env.DB_HOST,
             user: process.env.DB_USER,
@@ -17,11 +16,9 @@ async function ensureDatabaseInitialized() {
 
         const dbName = process.env.DB_NAME || 'usof_backend';
 
-        // Ensure database exists
         await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`);
         await connection.query(`USE \`${dbName}\`;`);
 
-        // Check if Users table exists
         const [tables] = await connection.query(`SHOW TABLES LIKE 'Users';`);
 
         if (tables.length === 0) {
@@ -30,10 +27,8 @@ async function ensureDatabaseInitialized() {
             const dbSql = fs.readFileSync(path.join(__dirname, 'db', 'db.sql'), 'utf8');
             const seedSql = fs.readFileSync(path.join(__dirname, 'db', 'seed.sql'), 'utf8');
 
-            // Create tables
             await connection.query(dbSql);
 
-            // Create triggers for automatic user rating updates
             await connection.query('DROP TRIGGER IF EXISTS after_like_insert;');
             await connection.query('DROP TRIGGER IF EXISTS after_like_delete;');
             await connection.query('DROP TRIGGER IF EXISTS after_like_update;');
@@ -100,7 +95,6 @@ async function ensureDatabaseInitialized() {
                 END;
             `);
 
-            // Insert seed data
             await connection.query(seedSql);
 
             console.log('Database schema created and test data inserted successfully!');

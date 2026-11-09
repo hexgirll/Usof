@@ -14,7 +14,6 @@ const EditPost = () => {
     const [categories, setCategories] = useState([]);
     const [selectedCategories, setSelectedCategories] = useState([]);
     
-    // Змінна, що чітко визначає: це чужий пост чи ні
     const [isForeignPost, setIsForeignPost] = useState(false);
     
     const [status, setStatus] = useState({ type: '', message: '' });
@@ -36,7 +35,6 @@ const EditPost = () => {
                 setCategories(catRes.data);
                 setSelectedCategories(postCatRes.data.map(c => c.id));
                 
-                // Якщо ID користувача не збігається з автором поста — це чужий пост (адмінський режим)
                 if (user && user.id !== postRes.data.author_id) {
                     setIsForeignPost(true);
                 } else {
@@ -70,7 +68,6 @@ const EditPost = () => {
         try {
             const payload = { status: statusVal, categories: selectedCategories };
             
-            // Відправляємо Title і Content тільки якщо це НЕ чужий пост
             if (!isForeignPost) {
                 payload.title = title;
                 payload.content = content;
@@ -88,7 +85,6 @@ const EditPost = () => {
 
     if (loading) return <div>Loading post for editing...</div>;
 
-    // Стиль для заблокованих полів: сірий фон, інший колір тексту, курсор-заборона
     const inputStyle = isForeignPost 
         ? { padding: '10px', fontSize: '1em', borderRadius: '4px', border: '1px solid #ccc', backgroundColor: '#e9ecef', color: '#6c757d', cursor: 'not-allowed' }
         : { padding: '10px', fontSize: '1em', borderRadius: '4px', border: '1px solid #ccc', backgroundColor: '#fff', color: '#000' };

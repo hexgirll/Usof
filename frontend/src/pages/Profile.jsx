@@ -15,7 +15,6 @@ const Profile = () => {
     const [imgError, setImgError] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Пагінація та пости
     const [userPosts, setUserPosts] = useState([]);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -33,7 +32,6 @@ const Profile = () => {
         setLoadingPosts(true);
         try {
             const response = await api.get(`/posts?author_id=${user.id}&page=${page}&limit=10`);
-            // Точна структура від оновленого бекенду
             setUserPosts(response.data.data || []);
             setTotalPages(response.data.pagination?.totalPages || 1);
             setTotalItems(response.data.pagination?.totalItems || 0);
@@ -91,7 +89,7 @@ const Profile = () => {
         if (!window.confirm('Are you sure you want to delete this post?')) return;
         try {
             await api.delete(`/posts/${postId}`);
-            fetchUserPosts(); // Перезавантажити список для правильної пагінації
+            fetchUserPosts();
         } catch (err) {
             console.error('Failed to delete post:', err);
         }
@@ -110,7 +108,7 @@ const Profile = () => {
             <h2>User Profile</h2>
 
             {status.message && (
-                <div style={{ padding: '10px', marginBottom: '15px', color: status.type === 'error' ? 'red' : 'green', border: `1px solid ${status.type === 'error' ? 'red' : 'green'}` }}>
+                <div style={{ padding: '10px 15px', marginBottom: '15px', borderRadius: '8px', backgroundColor: status.type === 'error' ? '#ffebee' : '#e8f5e9', color: status.type === 'error' ? 'red' : 'green'}}>
                     {status.message}
                 </div>
             )}
@@ -153,7 +151,6 @@ const Profile = () => {
 
             <hr style={{ margin: '30px 0' }} />
 
-            {/* Коректний лічильник завдяки totalItems від бекенду */}
             <h3>My Posts ({totalItems})</h3>
 
             {loadingPosts ? (
@@ -175,9 +172,9 @@ const Profile = () => {
 
             {totalPages > 1 && (
                 <div style={styles.pagination}>
-                    <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</button>
+                    <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={styles.pageBtn}>Previous</button>
                     <span>Page {page} of {totalPages}</span>
-                    <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next</button>
+                    <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} style={styles.pageBtn}>Next</button>
                 </div>
             )}
         </div>
@@ -185,16 +182,17 @@ const Profile = () => {
 };
 
 const styles = {
-    profileSection: { display: 'flex', gap: '30px', alignItems: 'flex-start', backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px' },
+    profileSection: { display: 'flex', gap: '30px', alignItems: 'flex-start', backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '12px', border: '1px solid #eee' },
     avatarBox: { display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' },
     avatarImage: { width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover' },
     avatarPlaceholder: { width: '120px', height: '120px', borderRadius: '50%', backgroundColor: '#3498db', color: '#fff', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '2.5em' },
-    uploadLabel: { marginTop: '12px', padding: '6px 12px', backgroundColor: '#3498db', color: '#fff', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85em', textAlign: 'center' },
+    uploadLabel: { marginTop: '12px', padding: '8px 14px', backgroundColor: '#3498db', color: '#fff', borderRadius: '20px', cursor: 'pointer', fontSize: '0.85em', textAlign: 'center', fontWeight: '600' },
     infoForm: { flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' },
-    input: { width: '100%', padding: '8px', boxSizing: 'border-box' },
+    input: { width: '100%', padding: '10px 14px', boxSizing: 'border-box', borderRadius: '8px', border: '1px solid #ccc', outline: 'none', fontSize: '0.95em' },
     readOnlyMeta: { display: 'flex', gap: '20px', fontSize: '0.9em', color: '#555', marginTop: '5px' },
-    saveBtn: { padding: '10px 15px', backgroundColor: '#2ecc71', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', alignSelf: 'flex-start', marginTop: '10px' },
-    pagination: { display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '20px' }
+    saveBtn: { padding: '10px 20px', backgroundColor: '#2ecc71', color: '#fff', border: 'none', borderRadius: '20px', cursor: 'pointer', alignSelf: 'flex-start', marginTop: '10px', fontWeight: 'bold' },
+    pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginTop: '20px' },
+    pageBtn: { padding: '6px 14px', borderRadius: '16px', border: '1px solid #ccc', backgroundColor: '#fff', cursor: 'pointer', fontWeight: '600' }
 };
 
 export default Profile;
